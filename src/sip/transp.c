@@ -277,6 +277,10 @@ static struct sip_conn *ws_conn_find(struct sip *sip, const struct sa *paddr,
 static void conn_close(struct sip_conn *conn, int err)
 {
 	struct le *le;
+	/* TODO: notify upper layer (baresip) that a websocket connection was
+	 * closed. This should be handled by a callback registered in struct sip
+	 * or by the upper layer scanning connections. */
+	(void)conn;
 
 	conn->websock_conn = mem_deref(conn->websock_conn);
 
@@ -917,6 +921,13 @@ static void websock_estab_handler(void *arg)
 
 	conn->established = true;
 
+	/* Notify upper layer if it registered a connection notify handler. */
+	if (conn->sip && conn->sip->conn_notify) {
+		conn->sip->conn_notify(conn->sip, &conn->paddr, &conn->laddr,
+					conn->tp, SIP_CONN_EV_WS_CONNECTED,
+					conn->sip->conn_notify_arg);
+	}
+
 	err = tcp_conn_local_get(websock_tcp(conn->websock_conn),
 				 &conn->laddr);
 	if (err)
@@ -937,7 +948,8 @@ static void websock_estab_handler(void *arg)
 
 		re_printf("--> send\n");
 
-		err = websock_send(conn->websock_conn, WEBSOCK_BIN,
+		// Was: WEBSOCK_BIN
+		err = websock_send(conn->websock_conn, WEBSOCK_TEXT,
 				   "%b",
 				   mbuf_buf(qent->mb),
 				   mbuf_get_left(qent->mb));
@@ -1001,6 +1013,14 @@ static void websock_close_handler(int err, void *arg)
 	struct sip_conn *conn = arg;
 
 	re_printf("sip: websock connection closed (%m)\n", err);
+	/* Notify upper layer that websocket closed */
+	if (conn->sip && conn->sip->conn_notify) {
+		/* use integer event codes (0 = connected, 1 = closed) */
+		conn->sip->conn_notify(conn->sip, &conn->paddr, &conn->laddr,
+							   conn->tp, 1,
+							   conn->sip->conn_notify_arg);
+	}
+
 	conn_close(conn, err ? err : ECONNRESET);
 	mem_deref(conn);
 }
@@ -1038,7 +1058,8 @@ static int ws_conn_send(struct sip_connqent **qentp, struct sip *sip,
 			   conn,
 			   dst, mb);
 
-		return websock_send(conn->websock_conn, WEBSOCK_BIN,
+		// Was: WEBSOCK_BIN
+		return websock_send(conn->websock_conn, WEBSOCK_TEXT,
 				    "%b",
 				    mbuf_buf(mb), mbuf_get_left(mb));
 	}
@@ -1208,6 +1229,14 @@ static void http_req_handler(struct http_conn *hc, const struct http_msg *msg,
 				 &conn->laddr);
 	if (err)
 		goto out;
+
+	/* Incoming websocket connection accepted - notify application */
+	if (transp->sip && transp->sip->conn_notify) {
+		/* 0 == connected */
+		transp->sip->conn_notify(transp->sip, &conn->paddr, &conn->laddr,
+								 conn->tp, 0,
+								 transp->sip->conn_notify_arg);
+	}
 
  out:
 	if (err) {
@@ -1419,7 +1448,7 @@ int sip_transp_add_websock(struct sip *sip, enum sip_transp tp,
 	}
 	else {
 		transp->laddr = *laddr;
-		sa_set_port(&transp->laddr, 9);
+		sa_set_port(&transp->laddr, 9); // <-- Default to port 9??
 	}
 
  out:
@@ -1607,7 +1636,8 @@ int sip_transp_send(struct sip_connqent **qentp, struct sip *sip, void *sock,
 
 			trace_send(sip, tp, conn, &dsttmp, mb);
 
-			err = websock_send(conn->websock_conn, WEBSOCK_BIN,
+			// Was: WEBSOCK_BIN
+			err = websock_send(conn->websock_conn, WEBSOCK_TEXT,
 					   "%b",
 					   mbuf_buf(mb), mbuf_get_left(mb));
 			if (err) {

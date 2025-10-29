@@ -21,6 +21,19 @@ struct sip {
 	char *software;
 	sip_exit_h *exith;
 	sip_trace_h *traceh;
+	/* Optional notify handler for websocket/connection events (upper layer)
+	 * set via sip_set_conn_notify(). We store the pointer as a generic
+	 * function-pointer to avoid including the public re header here
+	 * (which historically is included in compilation units in a specific
+	 * order). The notify callback uses an int event code (0/1 for
+	 * connected/closed) to stay decoupled from application enums. */
+	void (*conn_notify)(struct sip *sip,
+				 const struct sa *paddr,
+				 const struct sa *laddr,
+				 enum sip_transp tp,
+				 int ev,
+				 void *arg);
+	void *conn_notify_arg;
 	void *arg;
 	bool closing;
 	uint8_t tos;

@@ -307,6 +307,32 @@ int  sip_send_conn(struct sip *sip, void *sock, enum sip_transp tp,
 		   sip_conn_h *connh, void *arg);
 void sip_set_trace_handler(struct sip *sip, sip_trace_h *traceh);
 
+/** SIP connection events exposed to upper layer */
+enum sip_conn_ev {
+	SIP_CONN_EV_WS_CONNECTED = 0,
+	SIP_CONN_EV_WS_CLOSED   = 1,
+};
+
+/**
+ * Websocket / connection notify handler used by upper layers to be informed
+ * about newly accepted/established websocket connections and closed ones.
+ * The handler is intentionally generic and does not depend on application
+ * internals - it simply provides the peer/local addresses, transport and an
+ * event identifier.
+ */
+/* The event parameter is provided as an int to ease ABI/typing across
+ * internal/private headers. Consumers may use the public enum
+ * sip_conn_ev for readability. */
+typedef void (sip_conn_notify_h)(struct sip *sip,
+								 const struct sa *paddr,
+								 const struct sa *laddr,
+								 enum sip_transp tp,
+								 int ev,
+								 void *arg);
+
+/** Register a connection notify handler for websocket/connect events */
+void sip_set_conn_notify(struct sip *sip, sip_conn_notify_h *notifyh,
+						 void *arg);
 
 /* transport */
 int  sip_transp_add(struct sip *sip, enum sip_transp tp,

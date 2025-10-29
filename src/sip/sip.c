@@ -307,6 +307,15 @@ void sip_set_trace_handler(struct sip *sip, sip_trace_h *traceh)
 	sip->traceh = traceh;
 }
 
+void sip_set_conn_notify(struct sip *sip, sip_conn_notify_h *notifyh,
+						 void *arg)
+{
+	if (!sip)
+		return;
+
+	sip->conn_notify = notifyh;
+	sip->conn_notify_arg = arg;
+}
 
 struct sip_conncfg *sip_conncfg_find(struct sip *sip,
 				     const struct sa *paddr)
